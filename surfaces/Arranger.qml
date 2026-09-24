@@ -24,7 +24,9 @@ QtObject {
   readonly property var onScreen: Layout.visibleCards(config, presence)
 
   function select(id) {
-    selectedCard = Arrange.toggleSelection(selectedCard, id)
+    // Checked against the cards this surface actually has: `select` is an IPC
+    // verb, so the id comes from whatever called it.
+    selectedCard = Arrange.toggleSelection(selectedCard, id, onScreen)
   }
 
   function deselect() {

@@ -185,4 +185,16 @@ t.deep(written.cards, ["system", "battery", "power"],
   "writing the position it already had keeps the card list it never mentioned")
 t.eq(written.columns, 3, "and every other saved field with it")
 
+// The selection id arrives over IPC, so it is bounded and checked against the
+// cards on screen rather than stored as given.
+var onScreen = ["system", "battery"]
+t.eq(Arrange.toggleSelection("", "battery", onScreen), "battery", "a card on screen can be selected")
+t.eq(Arrange.toggleSelection("battery", "battery", onScreen), "", "and selecting it again lets go")
+t.eq(Arrange.toggleSelection("battery", "pods", onScreen), "battery",
+  "a card that is not on screen changes nothing")
+t.eq(Arrange.toggleSelection("battery", "x".repeat(200), onScreen), "battery",
+  "and neither does a string nothing will ever match")
+t.eq(Arrange.toggleSelection("", "anything"), "anything",
+  "without a card list the id is still taken, for callers that have none")
+
 process.exit(t.report("input"))

@@ -4,6 +4,81 @@ All notable changes to this plugin are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version
 numbers are the ones in `manifest.json`.
 
+## [1.9.4] — 2026-09-24
+
+### Security
+
+- **A `file://` cover that cannot be opened no longer hangs every image in the
+  shell.** Remote art was fetched with ceilings; local art still went straight
+  to an `Image`, checked only for its scheme and length. Qt runs one
+  image-reader thread per QML engine and the shell is one engine, so a path
+  whose `open()` blocks — a FIFO with no writer — parked that thread
+  permanently, taking bar icons, tray icons, notification images and the lock
+  screen with it. One D-Bus property from any application on the session bus
+  was enough, with no timeout and no recovery short of restarting the shell.
+
+  Local covers are now copied by the same helper, which refuses anything that
+  is not a regular file and reads it under a timeout, so an `Image` only ever
+  points at a file this plugin wrote. Measured through the real component: six
+  of six queued images still load behind a blocking cover, where one of six did
+  before.
+
+- **A file can no longer declare an enormous canvas.** The helper reads the
+  dimensions a PNG, GIF or BMP declares and refuses anything over 8192 a side.
+  A 389 KB PNG claiming 20000×20000 passed every earlier check; what stopped it
+  was Qt's own allocation limit, which is Qt's guarantee and settable, while
+  this document credited the plugin's `sourceSize`.
+
+- **Cancelling a fetch now kills the download.** The transfer runs as its own
+  process group, so the SIGTERM that cancels the helper takes curl with it.
+  Before, the orphan ran on until `--max-time`, so two fetches could overlap.
+
+- **A writer cannot spend the UI thread through a watched file.** `GuardedFile`
+  only suppressed re-reads *above* its cap; one byte under it, every write was
+  a full re-read, re-convert and re-parse — measured at a few thousand rewrites
+  a second to saturate a core. Reads are coalesced now.
+
+- Smaller hardening: the destination directory is resolved before it is written
+  to, so a symlinked path component cannot carry a write outside
+  `$XDG_RUNTIME_DIR/omawidgets/`; `mv -T` so a destination that is a directory
+  is an error rather than a file quietly moved inside it; `.fetch.*`
+  temporaries are pruned like everything else; `Media.toArray` and
+  `Format.joinMeta` bound the length they will walk, as the other list
+  helpers already did; the selection id from IPC is bounded and checked against
+  the cards on screen; and the directory is created 0700.
+
+### Changed
+
+- `scripts/omawidgets-dev-install` is now `scripts/omawidgets-dev-sync`. It
+  never installed anything for a user — `omarchy plugin add` does that — and a
+  filename containing "install" is what makes the marketplace scanner report an
+  installer capability for a maintainer to review by hand.
+
+### Fixed
+
+- The test harness no longer binds a fixed port or writes a predictable
+  temporary file: either let another local process answer the "hostile" cases
+  in the server's place, which is a suite that can be made to pass vacuously.
+- The pruning assertion required "at most eight files", which also passed if
+  pruning deleted everything or every fetch failed. It now requires exactly
+  eight including the newest.
+- `tests/fetch.sh` covers 29 cases, up from 17: a body exactly at the cap, a
+  redirect loop, a declared image bomb, destination shapes, the local-file
+  refusals, and a cancellation.
+
+### Documentation
+
+- `docs/SECURITY.md` said the plugin writes three things and "never
+  `shell.json`", while `BarWidget.qml` describes itself as the plugin's write
+  path to `shell.json`. It writes five, one of them that entry through the
+  host's `updateEntryInline`. It also said "its one helper script takes no
+  arguments"; there are three, and one takes four.
+- `updateCheck: false` stops the daily check, not an explicit one: the popup
+  button and the `checkForUpdate` IPC verb both still ask. Said so.
+- Two development screenshots committed by accident in `df84604` — 1.1 MB,
+  referenced nowhere — are removed, and `.claude/` is ignored and excluded from
+  a dev sync.
+
 ## [1.9.3] — 2026-09-23
 
 ### Security

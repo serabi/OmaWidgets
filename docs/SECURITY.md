@@ -57,9 +57,14 @@ permissions. That is true of this one too, so here is exactly what it does.
 sensors, the GPU's sysfs nodes, the battery's cycle count, the librepods status
 file, and MPRIS metadata over the session bus. All of it read-only.
 
-**It writes three things, all of them yours.** Its own to-do list, at
-`$XDG_STATE_HOME/omawidgets/todos.json` — the plugin's own directory, created on
-first run, never `shell.json`, which belongs to the bar. Playback, when you press
+**Everything it writes is yours, and there are five of them.** Its own to-do
+list, at `$XDG_STATE_HOME/omawidgets/todos.json`, in the plugin's own directory,
+created on first run. When it last checked for a new version, at
+`$XDG_STATE_HOME/omawidgets/update.json`. Fetched covers and manifests, under
+`$XDG_RUNTIME_DIR/omawidgets/`, pruned by age and by count. Its own entry in
+`~/.config/omarchy/shell.json` when you change one of its settings — never the
+file itself: the write goes through the host's `updateEntryInline`, which owns
+the file and re-imposes the entry's `id`. And playback, when you press
 a transport button — a `Next`, `Previous` or `PlayPause` call to the player you are
 already listening to, and only when that player reports it supports it. And the
 power profile, and only through Omarchy's own
@@ -77,7 +82,11 @@ plugin does without the reading.
 **It talks to the network in two places, and you can turn both off.** The
 update check reads this repository's published `manifest.json`, at most once a
 day, and album art is fetched when the player publishes a remote URL.
-`updateCheck: false` stops the first; `albumArt: false` stops the second.
+`updateCheck: false` stops the daily check; `albumArt: false` stops art
+entirely, local files included. Neither setting disables an explicit request:
+the popup's **Check now** button and the `checkForUpdate` IPC verb both ask
+outright, which any process on this machine can call — asking on a timer and
+asking because someone asked are different things.
 
 **Neither happens inside the shell process.** Nothing in QML can bound a
 response: Quickshell's `XMLHttpRequest` exposes no timeout, and its size can
@@ -106,12 +115,25 @@ a predictable name cannot be pointed somewhere else by a symlink; and fetched
 files are pruned by age and by count, so a player rewriting its artwork in a
 loop cannot fill a tmpfs.
 
-What reaches QML is a local file that is already small, read through the same
-`GuardedFile` that bounds every other file this plugin reads. A cover then has
-to *be* an image by its own magic bytes — checked in the script and again in
-QML — so an HTML error page served as `image/png` never reaches a decoder. SVG
-is refused as a document with scripting rather than a picture. Decoding is
-bounded separately at 256 pixels a side. Local `file://` art is read directly.
+**Local covers go through the helper too, and that is not paranoia.** Qt runs
+one image-reader thread per QML engine and the shell is one engine, so a path
+whose `open()` blocks — a FIFO with no writer is enough — parks that thread for
+good and takes every other image in the shell with it: bar icons, tray icons,
+notification images, the lock screen. No timeout, no error, no recovery short
+of restarting the shell, and the URL that does it is one D-Bus property from
+any application on the session bus. So a `file://` cover is copied by the same
+helper, which refuses anything that is not a regular file and reads it under a
+timeout.
+
+What reaches QML is therefore always a file this plugin wrote, small, and read
+through the same `GuardedFile` that bounds every other file it reads. What that
+file *is* gets decided three times by one rule: the helper checks the magic
+bytes, the helper checks the dimensions the file declares — over 8192 a side is
+refused, since a small file can ask a decoder for an enormous canvas — and the
+bytes are checked again in QML before a decoder sees them. An HTML error page
+served as `image/png` never reaches one. SVG is refused as a document with
+scripting rather than a picture. Decoding is bounded again at 256 pixels a
+side, and beyond that by Qt's own allocation limit.
 
 **Where those URLs may point is not a privilege boundary.** A cover URL comes
 from a process on your own session bus, and the fetch runs as you — a process
@@ -120,14 +142,21 @@ is that the answer cannot cost the shell unbounded memory or time, and cannot
 become anything but a picture.
 
 **Measured, not asserted.** `tests/fetch.sh` stands up a server written to be
-hostile and runs 17 cases against the helper on every test run: a 256 MB
-chunked flood, a declared 50 MB body, headers followed by silence, an HTML page
-served as `image/png`, a redirect off http(s), a `file://` URL, a command
-substitution in a URL, a destination outside the runtime directory, a cap above
-the hard ceiling, and twelve fetches in a row to check the pruning. Through the
-real components in a running shell, each hostile case renders nothing and
-leaves the shell's RSS unchanged, and 200 artwork changes in two seconds
-coalesce into a single fetch.
+hostile and runs 29 cases against the helper on every test run: a 256 MB
+chunked flood, a declared 50 MB body, a body exactly at the cap, headers
+followed by silence, a redirect loop, a redirect off http(s), an HTML page
+served as `image/png`, a PNG declaring 20000×20000, a `file://` URL, a command
+substitution and a backtick in a URL, a cap that is not a number and one above
+the hard ceiling, destinations outside the runtime directory and ones that try
+to climb out of it, a local FIFO, a local directory, a character device, twelve
+fetches in a row to check the pruning, and a cancellation to check that the
+download dies with it.
+
+Through the real components in a running shell, each hostile case renders
+nothing and leaves the shell's RSS unchanged, 200 artwork changes in two
+seconds coalesce into a single fetch, and a cover that blocks on open no longer
+stops anything else loading — six of six queued images still arrive, where one
+of six did before.
 
 **It does not update itself.** The popup's **Update** button opens a terminal
 running Omarchy's own `omarchy plugin update <id>`, which shows a diff of what
@@ -175,7 +204,13 @@ goes through a typed parser that clamps ranges, strips control characters, caps
 lengths, and falls back rather than throwing. Device names are rendered as
 `Text.PlainText` and never interpreted.
 
-**Its one helper script takes no arguments.** `scripts/omawidgets-probe` runs
-once per session to find where your sensors live. It accepts no input, pins
-`PATH`, resolves every path it reports and refuses any that does not land inside
-`/sys` or `/proc`. The plugin checks that again before opening one.
+**It ships three helper scripts, and what each one accepts is bounded.**
+`scripts/omawidgets-probe` runs once per session to find where your sensors
+live: it accepts no input, pins `PATH`, resolves every path it reports and
+refuses any that does not land inside `/sys` or `/proc` — which the plugin
+checks again before opening one. `scripts/omawidgets-probe-gpu` is the GPU half
+of it, sourced rather than run. `scripts/omawidgets-fetch` is the only one that
+takes arguments — a source, a destination, a byte cap and a mode — and it
+validates all four, as described above. `scripts/omawidgets-dev-sync` is a
+development convenience that copies a checkout into the plugin directory;
+nothing runs it during `omarchy plugin add`, `enable`, `update` or `remove`.

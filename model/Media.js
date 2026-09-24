@@ -33,12 +33,15 @@ function num(value, fallback) {
 // list and a card that said "no track" while a player sat there with a title.
 // Anything indexable with a length is accepted, and copied so the rest of this
 // file works on a plain array.
+// Bounded like every other list taken from outside: a length of 1e8 is a
+// broken value, and walking it costs seconds.
 function toArray(value) {
-  if (!value) return []
-  if (Array.isArray(value)) return value
-  var length = typeof value.length === "number" ? value.length : 0
+  if (Array.isArray(value)) return value.slice()
+  if (!value || typeof value !== "object") return []
+  var length = value.length
+  if (typeof length !== "number" || !isFinite(length) || length < 0) return []
   var out = []
-  for (var i = 0; i < length; i++) out.push(value[i])
+  for (var i = 0; i < Math.min(Math.floor(length), 256); i++) out.push(value[i])
   return out
 }
 
@@ -151,14 +154,28 @@ function artUrl(raw) {
   return text
 }
 
-function isRemoteArt(url) {
-  return /^https?:\/\//i.test(String(url || ""))
-}
+function isRemoteArt(url) { return /^https?:\/\//i.test(String(url || "")) }
 
-// Local art is a file on this machine, so the toolkit reads it directly.
-// Anything else is fetched with a ceiling — see ui/RemoteArt.qml.
-function isLocalArt(url) {
-  return /^file:\/\//i.test(String(url || ""))
+// A file on this machine, which is not the same as one worth opening: see
+// ui/RemoteArt.qml for what the ones that block do to the shell.
+function isLocalArt(url) { return /^file:\/\//i.test(String(url || "")) }
+
+// The path inside a file:// URL, or "". Percent escapes are decoded: the
+// player wrote a URL, the helper wants a path.
+function localArtPath(url) {
+  var text = String(url || "")
+  if (!isLocalArt(text)) return ""
+  var path = text.substring(7)
+  var query = path.indexOf("?")
+  if (query !== -1) path = path.substring(0, query)
+  if (path === "" || path.charAt(0) !== "/") return ""
+  try {
+    path = decodeURIComponent(path)
+  } catch (e) {
+    return ""
+  }
+  // A control character in a decoded path is not something a player meant.
+  return /[\u0000-\u001F\u007F]/.test(path) ? "" : path
 }
 
 if (typeof module !== "undefined") {
@@ -174,6 +191,7 @@ if (typeof module !== "undefined") {
     describe: describe,
     artUrl: artUrl,
     isRemoteArt: isRemoteArt,
-    isLocalArt: isLocalArt
+    isLocalArt: isLocalArt,
+    localArtPath: localArtPath
   }
 }

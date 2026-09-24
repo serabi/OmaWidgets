@@ -96,7 +96,7 @@ function duration(seconds) {
 // separator behind.
 function joinMeta(parts, separator) {
   var out = []
-  for (var i = 0; i < parts.length; i++) {
+  for (var i = 0; i < Math.min(parts.length, 256); i++) {
     var part = String(parts[i] === undefined || parts[i] === null ? "" : parts[i]).trim()
     if (part !== "") out.push(part)
   }

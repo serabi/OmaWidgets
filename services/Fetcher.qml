@@ -13,13 +13,18 @@ Item {
   id: root
 
   property int maxBytes: 64 * 1024
-  // "any" or "image". An image has to be one by its own magic bytes.
+  // "any", "image", or "local-image" for a file already on this machine. An
+  // image has to be one by its own magic bytes either way.
   property string kind: "any"
   property string name: "fetched"
 
-  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR")
-    || ("/run/user/" + Quickshell.env("UID"))
-  readonly property string directory: runtimeDir + "/omawidgets"
+  // No fallback: UID is a shell variable and is never in the environment, so
+  // the old one composed /run/user//omawidgets and every fetch failed closed
+  // with an obscure code. Without a runtime directory there is nowhere this
+  // may write, and saying so here is clearer than the helper refusing later.
+  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || ""
+  readonly property string directory: runtimeDir === "" ? "" : runtimeDir + "/omawidgets"
+  readonly property bool available: directory !== "" && scriptPath !== ""
   readonly property string scriptPath: localPath(Qt.resolvedUrl("../scripts/omawidgets-fetch"))
 
   readonly property bool busy: process.running
@@ -35,19 +40,21 @@ Item {
 
   // One file per URL, so a cached Image is never a stale cover and two fetches
   // cannot write over each other.
-  function pathFor(url) {
-    return directory + "/" + name + "-" + Qt.md5(String(url || "")) + ".img"
+  function pathFor(source) {
+    return directory + "/" + name + "-" + Qt.md5(String(source || "")) + ".img"
   }
 
-  function get(url) {
-    if (scriptPath === "" || String(url || "") === "") return
-    var destination = pathFor(url)
+  function get(source) {
+    if (!available || String(source || "") === "") return
+    var destination = pathFor(source)
     // A new request replaces one still running: an MPRIS player that changes
     // its artwork in a loop should cost one fetch at a time, not one per
     // change.
     if (process.running) process.running = false
     process.destination = destination
-    process.command = [scriptPath, url, destination, String(maxBytes), kind]
+    // Through bash rather than execing the script, so a checkout that lost its
+    // exec bit still works — the same reason HardwareProbe does it.
+    process.command = ["bash", "--", scriptPath, source, destination, String(maxBytes), kind]
     process.running = true
   }
 

@@ -3,17 +3,20 @@ import "../services"
 import "../model/Bytes.js" as Bytes
 import "../model/Media.js" as Media
 
-// Album art: local files read directly, remote ones fetched with a ceiling.
+// Album art, from a URL that any process on the session bus can publish.
 //
-// The URL comes from whatever application registered itself on MPRIS — any
-// process on the session bus can publish one — and an Image handed a remote URL
-// downloads whatever arrives, for as long as it takes. So a remote cover is
-// fetched by the helper, where curl stops the producer at the socket, and what
-// reaches this file is a local file that is already small.
+// Neither kind of cover reaches an Image as the player gave it. A remote one
+// is downloaded by the helper, where curl stops an oversized or stalled
+// response at the socket. A local one is copied by the same helper, because a
+// path is not safer than a URL: Qt runs one image-reader thread per engine and
+// the shell is one engine, so a path whose open() blocks — a FIFO with no
+// writer is enough — parks that thread for good and every other image in the
+// shell with it. The helper refuses anything that is not a regular file, reads
+// it under a timeout, and copies it.
 //
-// The type is then decided twice, by the same rule: the helper refuses anything
-// whose magic bytes are not an image it knows, and the bytes are checked again
-// here before a decoder sees them.
+// So an Image here only ever points at a file this plugin wrote, and the type
+// is decided three times by the same rule: the helper gates on magic bytes and
+// on the declared pixel dimensions, and the bytes are checked again here.
 Item {
   id: root
 
@@ -26,6 +29,9 @@ Item {
   readonly property bool local: Media.isLocalArt(url)
   readonly property bool ready: image.status === Image.Ready
 
+  // The helper takes a path for a local cover and a URL for a remote one.
+  readonly property string source: local ? Media.localArtPath(url) : url
+
   property string fetchedPath: ""
 
   onUrlChanged: {
@@ -33,21 +39,21 @@ Item {
     verify.path = ""
     fetcher.cancel()
     // Coalesced: a player that rewrites its metadata in a loop should cost one
-    // fetch, not one per write.
-    if (url !== "" && !local && Media.isRemoteArt(url)) debounce.restart()
+    // copy or one fetch, not one per write.
+    if (source !== "") debounce.restart()
     else debounce.stop()
   }
 
   Timer {
     id: debounce
     interval: 250
-    onTriggered: fetcher.get(root.url)
+    onTriggered: fetcher.get(root.source)
   }
 
   Fetcher {
     id: fetcher
     name: "art"
-    kind: "image"
+    kind: root.local ? "local-image" : "image"
     maxBytes: root.maxBytes
     onFetched: function (path) {
       verify.path = path
@@ -71,7 +77,7 @@ Item {
   Image {
     id: image
     anchors.fill: parent
-    source: root.local ? root.url : root.fetchedPath
+    source: root.fetchedPath
     fillMode: Image.PreserveAspectCrop
     asynchronous: true
     cache: true

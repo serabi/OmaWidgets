@@ -18,9 +18,16 @@ function list(value) {
 
 // Tapping the selected widget again lets go of it, which is the only way to
 // deselect on a surface that never takes the keyboard.
-function toggleSelection(current, id) {
+function toggleSelection(current, id, known) {
   var name = String(id || "")
+  // Bounded and, where the caller knows the card list, checked against it: the
+  // id arrives over IPC, and a string nothing will ever match should not be
+  // retained for the session.
+  // An empty id still means "let go", which is what deselecting looks like
+  // from a caller that has nothing to select.
   if (name === "") return ""
+  if (name.length > 64) return String(current || "")
+  if (Array.isArray(known) && known.indexOf(name) === -1) return String(current || "")
   return String(current || "") === name ? "" : name
 }
 

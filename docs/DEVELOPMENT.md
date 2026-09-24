@@ -7,12 +7,12 @@
 git clone https://github.com/fabandrade88/OmaWidgets.git
 cd OmaWidgets
 ./tests/run.sh              # manifest, model, QML, and the probe on this machine
-./scripts/omawidgets-dev-install
+./scripts/omawidgets-dev-sync
 omarchy plugin enable io.github.fabandrade88.omawidgets --section right
 ```
 
 Saving a file under `~/.config/omarchy/plugins/` hot-reloads it. Run
-`./scripts/omawidgets-dev-install` again to push your changes there, or
+`./scripts/omawidgets-dev-sync` again to push your changes there, or
 `omarchy-shell shell rescanPlugins` to force a reload.
 
 ```bash
@@ -82,7 +82,7 @@ model/            pure JavaScript, no QML imports — `node` runs it
 
 scripts/omawidgets-probe      one-shot sensor discovery, no arguments, read-only
 scripts/omawidgets-probe-gpu  the GPU half of it, sourced rather than run
-scripts/omawidgets-dev-install
+scripts/omawidgets-dev-sync
 ```
 
 A component in another folder is reached with a directory import —

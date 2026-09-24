@@ -62,13 +62,24 @@ Item {
     printErrors: false
     // A file already known to be too large is not re-read on every write; the
     // timer below decides when to look again.
-    onFileChanged: if (!root._oversized) reload()
+    // Coalesced rather than read on every notification. The oversized guard
+    // below only suppresses files over the cap; one byte under it, a writer
+    // rewriting the file in a loop had this re-reading, re-converting and
+    // re-parsing hundreds of kilobytes per write on the UI thread — measured
+    // at a few thousand rewrites a second to saturate a core.
+    onFileChanged: if (!root._oversized) settle.restart()
     onLoaded: root._accept()
     onLoadFailed: {
       root._ready = true
       root._oversized = false
       root.missing()
     }
+  }
+
+  Timer {
+    id: settle
+    interval: 200
+    onTriggered: view.reload()
   }
 
   Timer {

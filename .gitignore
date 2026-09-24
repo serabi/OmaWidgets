@@ -3,3 +3,5 @@
 *.jsc
 .qmlls.ini
 .DS_Store
+# Agent definitions and local session state, not part of the plugin.
+.claude/
