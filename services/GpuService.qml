@@ -22,7 +22,11 @@ Item {
   readonly property bool present: reading.present
   readonly property var history: series
   readonly property var headline: Gpu.headline(reading)
-  readonly property bool usesHelper: nvidiaSmiPath !== ""
+  // The helper is used while it is answering. If it stops — a driver that is
+  // not loaded, a card that went away — the sysfs readings are what is left,
+  // and they are better than nothing even for an NVIDIA card.
+  readonly property bool usesHelper: nvidiaSmiPath !== "" && !helperFailed
+  property bool helperFailed: false
   // program(), not path(): this one is executed rather than read, and the sysfs
   // allowlist path() enforces would reject /usr/bin/nvidia-smi outright — which
   // is exactly what it did, silently disabling every NVIDIA card.
@@ -45,7 +49,7 @@ Item {
   readonly property bool hasSysfsSource: descriptor.driver !== ""
 
   function sample() {
-    if (nvidiaSmiPath !== "") {
+    if (usesHelper) {
       if (!nvidiaProcess.running) nvidiaProcess.running = true
       return
     }
@@ -71,7 +75,17 @@ Item {
   }
 
   function applyNvidia(raw) {
-    reading = Gpu.parseNvidiaSmi(raw)
+    var parsed = Gpu.parseNvidiaSmi(raw)
+    if (!parsed.present) {
+      // nvidia-smi ran and said nothing a card could be read from — on a
+      // machine with no NVIDIA driver it prints an error instead. Fall back to
+      // whatever sysfs has rather than showing a placeholder.
+      helperFailed = true
+      rebuild()
+      sample()
+      return
+    }
+    reading = parsed
     pushHistory()
   }
 
@@ -81,11 +95,11 @@ Item {
   }
 
   onActiveChanged: if (active) sample()
-  onDescriptorChanged: if (hasSysfsSource && nvidiaSmiPath === "") rebuild()
+  onDescriptorChanged: if (hasSysfsSource && !usesHelper) rebuild()
 
   Timer {
     interval: Math.max(500, root.intervalMs)
-    running: root.active && (root.hasSysfsSource || root.nvidiaSmiPath !== "")
+    running: root.active && (root.hasSysfsSource || root.usesHelper)
     repeat: true
     onTriggered: root.sample()
   }

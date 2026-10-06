@@ -62,6 +62,9 @@ else
   echo "skip shell — shellcheck not installed"
 fi
 
+step "probe-gpu"
+./tests/probe-gpu.sh || status=1
+
 step "fetch"
 ./tests/fetch.sh || status=1
 

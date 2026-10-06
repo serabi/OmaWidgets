@@ -36,8 +36,22 @@ omawidgets_gpu_vendor_name() {
   esac
 }
 
+# The helper is for an NVIDIA card, and only for one that is actually bound.
+#
+# nvidia-utils is a dependency of hyprland, aquamarine, libglvnd and steam on
+# Arch, so /usr/bin/nvidia-smi is routinely installed on machines with no NVIDIA
+# hardware at all. Reporting it there made the service prefer a helper that
+# answers "couldn't communicate with the NVIDIA driver", and skip the sysfs
+# readings the AMD or Intel card was publishing perfectly well — so the GPU row
+# showed a placeholder on a working card. Reported as #2.
+omawidgets_gpu_helper_path() {
+  local driver=${1:-} path=${2:-/usr/bin/nvidia-smi}
+  [[ $driver == nvidia && -x $path ]] || return 0
+  printf '%s\n' "$path"
+}
+
 omawidgets_probe_gpu() {
-  local dir driver vendor hwmon shared
+  local dir driver vendor hwmon shared helper
   dir=$(omawidgets_gpu_device_dir)
   [[ -n $dir ]] || return 0
 
@@ -90,6 +104,7 @@ omawidgets_probe_gpu() {
 
   # nvidia exposes nothing useful in sysfs, so its card is the one case that
   # needs a helper binary. No nvidia-smi simply means no utilisation row.
-  [[ -x /usr/bin/nvidia-smi ]] && emit gpu.nvidiaSmi /usr/bin/nvidia-smi
+  helper=$(omawidgets_gpu_helper_path "$driver")
+  [[ -n $helper ]] && emit gpu.nvidiaSmi "$helper"
   return 0
 }

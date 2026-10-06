@@ -47,6 +47,21 @@ numbers are the ones in `manifest.json`.
   helpers already did; the selection id from IPC is bounded and checked against
   the cards on screen; and the directory is created 0700.
 
+### Fixed
+
+- **The GPU row showed a placeholder on AMD and Intel machines that happen to
+  have `nvidia-utils` installed.** Reported as
+  [#2](https://github.com/fabandrade88/OmaWidgets/issues/2) by @iboard, with
+  the cause and the fix already worked out. The probe named
+  `/usr/bin/nvidia-smi` whenever it existed, regardless of which driver the
+  card was bound to — and on Arch `nvidia-utils` arrives as a dependency of
+  hyprland, aquamarine, libglvnd and steam, so it is routinely installed on
+  machines with no NVIDIA hardware. The service then preferred a helper that
+  answers "couldn't communicate with the NVIDIA driver" and skipped the amdgpu
+  or xe readings that were there all along. The helper is now named only for a
+  card actually bound to `nvidia`, and if it ever stops answering the service
+  falls back to sysfs instead of showing nothing.
+
 ### Changed
 
 - `scripts/omawidgets-dev-install` is now `scripts/omawidgets-dev-sync`. It
