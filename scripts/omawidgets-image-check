@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# What a fetched file has to be before a decoder is allowed near it. Sourced by
+# omawidgets-fetch, not run on its own, the way omawidgets-probe-gpu is sourced
+# by omawidgets-probe.
+#
+# Two questions, in order: is this one of the formats this toolkit decodes, by
+# the file's own magic bytes rather than by any Content-Type that came with it;
+# and how large does it say it is. The second matters because a file inside its
+# byte budget can still declare an enormous canvas, and a decoder asked for one
+# allocates for it before anything scales it down. Qt's own 256 MB ceiling
+# guards a QImage; it does not guard what libjpeg allocates, and `sourceSize`
+# only scales the result. Progressive JPEG is the sharp case: its coefficient
+# buffers are width x height x components x 2 bytes, allocated and zeroed for
+# the whole image, so a few hundred kilobytes on the wire can ask for
+# gigabytes. Raised by the marketplace review of 2c11e82, which found JPEG
+# reaching the decoder unchecked while PNG, GIF and BMP were bounded.
+
+# Eight thousand a side is more than any album cover, and the area cap bounds
+# what a decoder allocates whatever the shape: 4096x4096 is roughly 100 MB of
+# progressive-JPEG coefficients, where 8192x8192 would be four times that.
+OMAWIDGETS_MAX_PIXELS=8192
+OMAWIDGETS_MAX_AREA=16777216
+
+# The dimensions a JPEG declares, as "width height", or "0 0" when they cannot
+# be found.
+#
+# They live in the frame header (SOF0..SOF15, minus the DHT, JPG and DAC
+# markers that share that range), which sits after a variable run of other
+# segments — an EXIF thumbnail or a colour profile can push it a long way in.
+# So the segment chain is walked rather than read at a fixed offset, and only
+# through the first 128 KB: a frame header further in than that is not
+# something to keep looking for, it is something to refuse.
+omawidgets_jpeg_dimensions() {
+  local file=${1:-} hex pos=4 marker length total guard=0
+  hex=$(head -c 131072 -- "$file" | od -An -tx1 -v | tr -d ' \n')
+  total=${#hex}
+
+  while (( pos + 8 <= total && guard < 512 )); do
+    guard=$(( guard + 1 ))
+    if [[ ${hex:pos:2} != ff ]]; then pos=$(( pos + 2 )); continue; fi
+    # Segments may be padded with 0xFF; walk to the marker byte itself.
+    while (( pos + 4 <= total )) && [[ ${hex:pos+2:2} == ff ]]; do pos=$(( pos + 2 )); done
+    marker=${hex:pos+2:2}
+    case $marker in
+      d8 | 01 | d[0-7]) pos=$(( pos + 4 )); continue ;;   # standalone, no payload
+      d9 | da) printf '0 0\n'; return 0 ;;                # end of image, or scan data
+    esac
+    length=$(( 16#${hex:pos+4:4} ))
+    (( length >= 2 )) || { printf '0 0\n'; return 0; }
+    case $marker in
+      c0 | c1 | c2 | c3 | c5 | c6 | c7 | c9 | ca | cb | cd | ce | cf)
+        # Payload: 0xFF, marker, two length bytes, then one byte of precision,
+        # two of height and two of width — all big-endian.
+        printf '%d %d\n' "$(( 16#${hex:pos+14:4} ))" "$(( 16#${hex:pos+10:4} ))"
+        return 0 ;;
+    esac
+    pos=$(( pos + 4 + length * 2 ))
+  done
+  printf '0 0\n'
+}
+
+# 0 if the file is an image this toolkit decodes and small enough to decode,
+# 9 if it is not one of those formats (or is too short to say), 11 if it
+# declares more than the caps above.
+omawidgets_image_check() {
+  local file=${1:-} header width=0 height=0
+
+  header=$(head -c 32 -- "$file" | od -An -tx1 -v | tr -d ' \n')
+  # Enough bytes to carry a header at all. The smallest real file in any of
+  # these formats is comfortably over 32 bytes, and a "PNG" that is only a
+  # signature has no dimensions to check — it is a magic number, not an image.
+  (( ${#header} == 64 )) || return 9
+
+  hex_at() { echo "${header:$(( $1 * 2 )):$(( $2 * 2 ))}"; }
+
+  case $header in
+    89504e470d0a1a0a*)                         # PNG: IHDR, big-endian, at 16
+      width=$(( 16#$(hex_at 16 4) )); height=$(( 16#$(hex_at 20 4) )) ;;
+    474946383*)                                # GIF: little-endian, at 6
+      width=$(( 16#$(hex_at 7 1)$(hex_at 6 1) )); height=$(( 16#$(hex_at 9 1)$(hex_at 8 1) )) ;;
+    424d*)                                     # BMP: little-endian, at 18
+      width=$(( 16#$(hex_at 21 1)$(hex_at 20 1)$(hex_at 19 1)$(hex_at 18 1) ))
+      height=$(( 16#$(hex_at 25 1)$(hex_at 24 1)$(hex_at 23 1)$(hex_at 22 1) )) ;;
+    ffd8ff*)                                   # JPEG: walk to the frame header
+      read -r width height < <(omawidgets_jpeg_dimensions "$file")
+      # A frame header we cannot find is a size we cannot bound, and an image
+      # we cannot bound is one no decoder gets to see.
+      (( width > 0 && height > 0 )) || return 9 ;;
+    52494646????????57454250*)                 # RIFF....WEBP
+      # VP8/VP8L/VP8X each carry their size differently; the byte cap and Qt's
+      # own limit are what bound this one.
+      return 0 ;;
+    *) return 9 ;;
+  esac
+
+  (( width <= OMAWIDGETS_MAX_PIXELS && height <= OMAWIDGETS_MAX_PIXELS )) || return 11
+  (( width * height <= OMAWIDGETS_MAX_AREA )) || return 11
+  return 0
+}

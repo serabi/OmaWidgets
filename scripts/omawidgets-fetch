@@ -47,11 +47,13 @@ export PATH
 LC_ALL=C
 export LC_ALL
 
+# What an image is allowed to be lives next door, so this file stays about
+# fetching: see scripts/omawidgets-image-check.
+# shellcheck source=omawidgets-image-check
+source "$(dirname -- "${BASH_SOURCE[0]}")/omawidgets-image-check"
+
 HARD_CAP=1048576
 MAX_SECONDS=8
-# Eight thousand a side is more than any album cover and well inside what a
-# decoder will allocate for.
-MAX_PIXELS=8192
 
 source=${1:-}
 out=${2:-}
@@ -145,36 +147,7 @@ size=$(stat -c %s -- "$tmp" 2>/dev/null || echo 0)
 (( size < cap )) || exit 7
 
 if [[ $kind == image || $kind == local-image ]]; then
-  header=$(head -c 32 -- "$tmp" | od -An -tx1 -v | tr -d ' \n')
-  # Enough bytes to carry a header at all. The smallest real file in any of
-  # these formats is comfortably over 32 bytes, and a "PNG" that is only a
-  # signature has no dimensions to check — it is a magic number, not an image.
-  (( ${#header} == 64 )) || exit 9
-  case $header in
-    89504e470d0a1a0a*) ;;                      # PNG
-    ffd8ff*) ;;                                # JPEG
-    474946383*) ;;                             # GIF87a / GIF89a
-    424d*) ;;                                  # BMP
-    52494646????????57454250*) ;;              # RIFF....WEBP
-    *) exit 9 ;;
-  esac
-
-  # A file inside its byte budget can still declare an enormous canvas, and a
-  # decoder asked for one allocates for it. Qt has a 256 MB ceiling of its own,
-  # but that is Qt's guarantee rather than this plugin's, and it is settable.
-  # The dimensions live at a fixed offset in three of these five formats.
-  hex_at() { echo "${header:$(( $1 * 2 )):$(( $2 * 2 ))}"; }
-  width=0; height=0
-  case $header in
-    89504e470d0a1a0a*)                         # PNG: IHDR, big-endian, at 16
-      width=$(( 16#$(hex_at 16 4) )); height=$(( 16#$(hex_at 20 4) )) ;;
-    474946383*)                                # GIF: little-endian, at 6
-      width=$(( 16#$(hex_at 7 1)$(hex_at 6 1) )); height=$(( 16#$(hex_at 9 1)$(hex_at 8 1) )) ;;
-    424d*)                                     # BMP: little-endian, at 18
-      width=$(( 16#$(hex_at 21 1)$(hex_at 20 1)$(hex_at 19 1)$(hex_at 18 1) ))
-      height=$(( 16#$(hex_at 25 1)$(hex_at 24 1)$(hex_at 23 1)$(hex_at 22 1) )) ;;
-  esac
-  (( width <= MAX_PIXELS && height <= MAX_PIXELS )) || exit 11
+  omawidgets_image_check "$tmp" || exit $?
 fi
 
 # -T so a destination that happens to be a directory is an error rather than a

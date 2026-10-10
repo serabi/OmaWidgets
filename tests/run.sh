@@ -65,6 +65,9 @@ fi
 step "probe-gpu"
 ./tests/probe-gpu.sh || status=1
 
+step "image-check"
+./tests/image-check.sh || status=1
+
 step "fetch"
 ./tests/fetch.sh || status=1
 

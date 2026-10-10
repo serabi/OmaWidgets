@@ -53,6 +53,15 @@ class H(http.server.BaseHTTPRequestHandler):
         elif self.path == "/slow":
             self.send_response(200); self.send_header("Content-Length", "1000"); self.end_headers()
             time.sleep(30)
+        elif self.path.startswith("/jpeg"):
+            import struct
+            w = h = 600
+            body = (b"\xff\xd8\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+                    + b"\xff\xc0" + struct.pack(">H", 17) + bytes([8]) + struct.pack(">HH", h, w)
+                    + bytes([3, 1, 17, 0, 2, 17, 1, 3, 17, 1])
+                    + b"\xff\xda" + struct.pack(">H", 8) + bytes([1, 1, 0, 0, 63, 0]) + b"\x00" * 64 + b"\xff\xd9")
+            self.send_response(200); self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
         elif self.path == "/exact":
             body = b"E" * 64
             self.send_response(200); self.send_header("Content-Length", str(len(body)))
@@ -126,6 +135,10 @@ check 5 "a redirect off http(s) is not followed"   $SCRIPT "$base/redirect-to-fi
 check 7 "a body exactly at the cap is discarded"   $SCRIPT "$base/exact" "$OUT_DIR/out.img" 64
 check 5 "a redirect loop runs out of hops"         $SCRIPT "$base/loop" "$OUT_DIR/out.img" 65536
 check 11 "a 20000x20000 declaration is refused"    $SCRIPT "$base/bomb" "$OUT_DIR/out.img" 65536 image
+
+# The format rules have their own suite in tests/image-check.sh; these are the
+# two that matter end to end, over HTTP.
+check 0 "a cover-sized JPEG is fetched"            $SCRIPT "$base/jpeg?600x600" "$OUT_DIR/out.img" 65536 image
 check 4 "a destination ending in a slash"          $SCRIPT "$base/json" "$OUT_DIR/" 65536
 check 3 "an unknown mode"                          $SCRIPT "$base/json" "$OUT_DIR/out.img" 65536 wat
 
