@@ -44,7 +44,7 @@ Item {
         width: (root.width - Style.spacing.xs * Math.max(0, root.profiles.length - 1))
           / Math.max(1, root.profiles.length)
         implicitHeight: Math.max(Style.spacing.controlHeight, label.implicitHeight + Style.spacing.md * 2)
-        radius: Style.cornerRadius
+        radius: 10
         color: isActive ? Style.selectedAccentFill : (hot ? Style.hoverFill : Style.normalFill)
         borderSpec: Border.controlSpec(isActive ? "selected" : (hot ? "hover" : "normal"),
           root.foreground, Color.accent, Color.urgent)

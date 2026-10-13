@@ -31,14 +31,31 @@ BorderSurface {
 
   default property alias content: contentColumn.children
 
+  // Glass: always rounded whatever Hyprland's rounding is, a translucent fill
+  // the compositor blurs (layer rule on "omawidgets-desktop"), and a faint
+  // white rim instead of the theme's solid accent outline.
+  readonly property int glassRadius: 22
+
   color: Util.alpha(Color.popups.background, backgroundOpacity)
-  radius: Style.cornerRadius
+  radius: glassRadius
   // Selection is drawn as a flat accent border rather than the theme's own
   // selected-control tokens: some themes give those zero width, and a selection
   // you cannot see is worse than one that does not match the palette exactly.
   borderSpec: selected
     ? Border.flat(Color.accent, Math.max(2, Style.space(2)))
-    : Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(1)))
+    : Border.flat(Qt.rgba(1, 1, 1, 0.16), 1)
+
+  // Soft sheen across the top half, like light catching the pane.
+  Rectangle {
+    anchors.fill: parent
+    anchors.margins: 1
+    radius: root.radius - 1
+    gradient: Gradient {
+      GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.10) }
+      GradientStop { position: 0.45; color: Qt.rgba(1, 1, 1, 0.02) }
+      GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+    }
+  }
   padding: compact ? Style.spacing.popupPadding : Style.spacing.panelPadding
 
   implicitHeight: contentTopInset + header.implicitHeight + gap + contentColumn.implicitHeight

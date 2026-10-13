@@ -51,7 +51,7 @@ Item {
           // a hairline, so a genuinely idle stretch is visibly a measurement
           // rather than a gap in the record.
           height: parent.sample < 0 ? 0 : Math.max(1, parent.height * Math.min(1, parent.sample))
-          radius: Style.cornerRadius > 0 ? width / 2 : 0
+          radius: width / 2
           color: index === root.slots - 1 ? root.fill : root.dimFill
 
           Behavior on height {

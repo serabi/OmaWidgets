@@ -23,7 +23,7 @@ Item {
   Rectangle {
     id: trackRect
     anchors.fill: parent
-    radius: Style.cornerRadius > 0 ? height / 2 : 0
+    radius: height / 2
     color: root.track
   }
 

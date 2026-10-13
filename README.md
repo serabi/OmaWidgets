@@ -1,5 +1,7 @@
 <h1 align="center">OmaWidgets</h1>
 
+> **serabi fork:** rounded, frosted glass cards. See [`extras/glass`](extras/glass/README.md) for the Hyprland and settings pieces. Upstream: [fabandrade88/OmaWidgets](https://github.com/fabandrade88/OmaWidgets).
+
 <p align="center">
   Desktop widget cards for Omarchy, in the spirit of the macOS desktop.<br>
   Performance, now playing, to-dos with a Pomodoro clock, AirPods, battery and power profile —<br>

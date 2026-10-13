@@ -43,7 +43,7 @@ Item {
 
         Rectangle {
           anchors.fill: parent
-          radius: Style.cornerRadius > 0 ? width / 2 : 0
+          radius: width / 2
           color: root.track
         }
 
@@ -53,7 +53,7 @@ Item {
           // A known zero still draws a hairline, so an idle core is visibly a
           // reading rather than a gap where a bar should be.
           height: parent.load < 0 ? 0 : Math.max(1, parent.height * Math.min(1, parent.load))
-          radius: Style.cornerRadius > 0 ? width / 2 : 0
+          radius: width / 2
           color: parent.load >= root.hotFraction ? Color.urgent : root.fill
 
           Behavior on height {

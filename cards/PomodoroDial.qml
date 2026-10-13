@@ -85,7 +85,7 @@ Item {
           width: (segments.width - Style.spacing.xs * 2) / 3
           implicitHeight: Math.max(Style.spacing.controlHeight,
             inside.implicitHeight + Style.spacing.sm * 2)
-          radius: Style.cornerRadius
+          radius: 10
           color: isActive ? Style.selectedAccentFill : (hot ? Style.hoverFill : Style.normalFill)
           borderSpec: Border.controlSpec(isActive ? "selected" : (hot ? "hover" : "normal"),
             root.foreground, root.accent, Color.urgent)

@@ -60,7 +60,7 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
     width: Style.space(16)
     height: width
-    radius: Style.cornerRadius > 0 ? Math.max(3, Style.space(4)) : 0
+    radius: Math.max(3, Style.space(4))
     color: root.done ? Util.alpha(root.accent, 0.9) : "transparent"
     borderSpec: Border.flat(root.done ? root.accent : Util.alpha(Color.popups.text, 0.45), 1)
 
