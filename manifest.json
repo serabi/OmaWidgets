@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "io.github.fabandrade88.omawidgets",
-  "name": "OmaWidgets",
+  "name": "OmaWidgets (serabi's fork)",
   "version": "1.9.5",
   "author": "Fabricio Oliveira de Andrade",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "overlay": "Overlay.qml"
   },
   "barWidget": {
-    "displayName": "OmaWidgets",
+    "displayName": "OmaWidgets (serabi's fork)",
     "description": "macOS-style desktop cards for performance, media, to-dos and Pomodoro, AirPods, battery and power profile, with a compact rounded-tile mode.",
     "category": "System",
     "allowMultiple": false,
