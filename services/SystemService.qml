@@ -25,6 +25,8 @@ Item {
   readonly property real cpuMaxFrequency: maxFrequency
   readonly property string cpuModel: probe ? probe.text("cpu.model", "") : ""
   readonly property int coreCount: coreLoads.length
+  readonly property real fanRpm: rpm
+  readonly property real fanFraction: Sysfs.fanFraction(rpm, rpmMin, rpmMax)
 
   readonly property var memory: memorySample
   readonly property var load: loadSample
@@ -36,6 +38,9 @@ Item {
   property real temperature: Sysfs.UNKNOWN
   property real frequency: Sysfs.UNKNOWN
   property real maxFrequency: Sysfs.UNKNOWN
+  property real rpm: Sysfs.UNKNOWN
+  property real rpmMin: Sysfs.UNKNOWN
+  property real rpmMax: Sysfs.UNKNOWN
 
   // The previous cumulative counters. /proc/stat is monotonic, so a single
   // sample says nothing on its own; load only exists once there are two.
@@ -47,6 +52,7 @@ Item {
     loadFile.reload()
     if (temperatureFile.path !== "") temperatureFile.reload()
     if (frequencyFile.path !== "") frequencyFile.reload()
+    if (fanFile.path !== "") fanFile.reload()
   }
 
   function applyStat(raw) {
@@ -123,5 +129,27 @@ Item {
     path: root.probe ? root.probe.path("cpu.freq.max") : ""
     printErrors: false
     onLoaded: root.maxFrequency = Sysfs.parseCpuFrequency(text())
+  }
+
+  FileView {
+    id: fanFile
+    path: root.probe ? root.probe.path("fan.input") : ""
+    printErrors: false
+    onLoaded: root.rpm = Sysfs.parseRpm(text())
+    onLoadFailed: root.rpm = Sysfs.UNKNOWN
+  }
+
+  FileView {
+    id: fanMinFile
+    path: root.probe ? root.probe.path("fan.min") : ""
+    printErrors: false
+    onLoaded: root.rpmMin = Sysfs.parseRpm(text())
+  }
+
+  FileView {
+    id: fanMaxFile
+    path: root.probe ? root.probe.path("fan.max") : ""
+    printErrors: false
+    onLoaded: root.rpmMax = Sysfs.parseRpm(text())
   }
 }

@@ -26,6 +26,8 @@ Card {
   readonly property string cpuModel: system ? system.cpuModel : ""
   readonly property int coreCount: system ? system.coreCount : 0
   readonly property var memory: system ? system.memory : Sysfs.parseMeminfo("")
+  readonly property real fanRpm: system ? system.fanRpm : Format.UNKNOWN
+  readonly property real fanFraction: system ? system.fanFraction : Format.UNKNOWN
   readonly property real loadOne: system && system.load ? system.load.one : Format.UNKNOWN
 
   readonly property bool showCoreBars: config.showCoreBars !== false && !compact
@@ -128,6 +130,17 @@ Card {
         font.pixelSize: Style.font.caption
       }
     }
+  }
+
+  // Only where the machine exposes a fan; most laptops without one just skip
+  // the row. The meter runs from the fan's idle floor to its top speed.
+  MetricRow {
+    visible: Format.isKnown(root.fanRpm)
+    label: "FAN"
+    value: Format.isKnown(root.fanRpm) ? root.fanRpm + " rpm" : "—"
+    fraction: root.fanFraction
+    alert: Format.isKnown(root.fanFraction) && root.fanFraction >= 0.85
+    showMeter: Format.isKnown(root.fanFraction)
   }
 
   MetricRow {

@@ -130,6 +130,24 @@ function parseTemperature(text) {
   return milli
 }
 
+// A hwmon fan node holds whole RPM. Zero is real (a stopped fan); an empty
+// read or a value no laptop or desktop fan reaches is not.
+function parseRpm(text) {
+  var raw = String(text || "").trim()
+  if (raw === "") return UNKNOWN
+  var rpm = num(raw, NaN)
+  if (!isFinite(rpm) || rpm < 0 || rpm > 30000) return UNKNOWN
+  return Math.round(rpm)
+}
+
+// Where the fan sits between its idle floor and its top speed, for the meter.
+// Without a known range the meter is hidden rather than guessed.
+function fanFraction(rpm, min, max) {
+  if (!(rpm >= 0) || !(max > 0)) return UNKNOWN
+  var floor = min > 0 && min < max ? min : 0
+  return Math.max(0, Math.min(1, (rpm - floor) / (max - floor)))
+}
+
 // scaling_cur_freq is in kHz.
 function parseCpuFrequency(text) {
   var khz = num(String(text || "").trim(), NaN)
@@ -147,6 +165,8 @@ if (typeof module !== "undefined") {
     parseMeminfo: parseMeminfo,
     parseLoadAvg: parseLoadAvg,
     parseTemperature: parseTemperature,
-    parseCpuFrequency: parseCpuFrequency
+    parseCpuFrequency: parseCpuFrequency,
+    parseRpm: parseRpm,
+    fanFraction: fanFraction
   }
 }

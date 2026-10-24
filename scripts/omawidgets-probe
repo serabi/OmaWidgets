@@ -97,11 +97,29 @@ cpu_temp_path() {
     /sys/class/thermal/thermal_zone0/temp
 }
 
+# The first hwmon fan node: applesmc on Intel Macs, thinkpad, dell_smm, a
+# board's Super I/O chip. Laptops without a readable fan simply emit nothing.
+fan_dir_and_id() {
+  local input
+  for input in /sys/class/hwmon/hwmon*/fan[1-9]_input; do
+    [[ -r $input ]] || continue
+    printf '%s\n' "${input%_input}" && return 0
+  done
+  return 0
+}
+
 emit cpu.model "$(awk -F': ' '/^model name/ { print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
 emit cpu.cores "$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || true)"
 emit_path cpu.temp "$(cpu_temp_path)"
 emit_path cpu.freq /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 emit_path cpu.freq.max /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq
+
+fan=$(fan_dir_and_id)
+if [[ -n $fan ]]; then
+  emit_path fan.input "${fan}_input"
+  emit_path fan.min "${fan}_min"
+  emit_path fan.max "${fan}_max"
+fi
 
 # ------------------------------------------------------------------------- gpu
 
